@@ -6,10 +6,10 @@ defmodule Monitor do
 
 def start config do
   Process.send_after self(), :print, config.print_after
-  next config, 0, Map.new, Map.new, Map.new
+  next config, 0, Map.new, Map.new, Map.new, Map.new
 end # start
 
-defp next config, clock, requests, updates, transactions do
+defp next config, clock, requests, updates, transactions, decisions do
   receive do
   { :db_update, db, seqnum, transaction } ->
     { :move, amount, from, to } = transaction
@@ -37,13 +37,22 @@ defp next config, clock, requests, updates, transactions do
       end # case
 
     updates = Map.put updates, db, seqnum 
-    next config, clock, requests, updates, transactions
+    next config, clock, requests, updates, transactions, decisions
       
   { :client_request, server_num } ->  # requests by replica
     seen = Map.get requests, server_num, 0
     requests = Map.put requests, server_num, seen + 1
-    next config, clock, requests, updates, transactions 
+    next config, clock, requests, updates, transactions, decisions
 
+
+  { :commander_decision, {ballot_num, slot_num, req} -> # decision by commander
+    if Map.has_key?(decisions, req) and decisions[req] != slot_num do
+	IO.puts " ** error duplicate decision of #{inspect req} " <>
+                "for slots #{slot_num} and #{decisions[req]"
+        System.halt
+    end
+    decisions = Map.put decisions, req, slot_num
+    next config, clock, requests, updates, transactions, decisions
   :print -> 
     clock = clock + config.print_after 
     sorted = updates |> Map.to_list |> List.keysort(0)
@@ -52,7 +61,7 @@ defp next config, clock, requests, updates, transactions do
     IO.puts "time = #{clock} requests seen = #{inspect sorted}"
     IO.puts ""
     Process.send_after self(), :print, config.print_after
-    next config, clock, requests, updates, transactions
+    next config, clock, requests, updates, transactions, decisions
 
   # ** ADD ADDITIONAL MESSAGES HERE
 

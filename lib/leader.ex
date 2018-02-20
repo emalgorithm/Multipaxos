@@ -1,5 +1,5 @@
 defmodule Commander do
-  def start leader, acceptors, replicas, {ballot_num, slot_num, cmd}=pvalue do
+  def start leader, acceptors, replicas, {ballot_num, slot_num, cmd}=pvalue, monitor do
     for a <- acceptors, do: send a, {:accept, self(), pvalue}
 
     # Ensure accepted with the right ballot number for a majority of acceptors
@@ -8,6 +8,8 @@ defmodule Commander do
     # At this point majority of acceptors have accepted the ballot
     for r <- replicas, do: send r, {:decision, slot_num, cmd}
 
+    IO.puts "Decision: #{inspect pvalue}"
+    send monitor, {:commander_decision, pvalue}
     # OPTIMIZATION: Send decision to acceptors so that they know commands that has already been decided
     Process.sleep(200)
     for a <- acceptors, do: send a, {:decision, pvalue}
@@ -30,7 +32,7 @@ defmodule Scout do
 end
 
 defmodule Leader do
-  def start _config do
+  def start _config, monitor do
     receive do
       {:bind, acceptors, replicas} ->
         init_ballot_num = {0, self()}
@@ -44,7 +46,7 @@ defmodule Leader do
       {:propose, slot_num, cmd} ->
         if active and !(Map.has_key? proposals, slot_num) do
           pvalue = {ballot_num, slot_num, cmd}
-          spawn Commander, :start, [self(), acceptors, replicas, pvalue]
+          spawn Commander, :start, [self(), acceptors, replicas, pvalue], monitor
         end
 
         proposals = Map.put_new proposals, slot_num, cmd
@@ -53,7 +55,7 @@ defmodule Leader do
         proposals = Map.merge proposals, (pmax pvalues)
         for {slot_num, cmd} <- proposals do
           pvalue = {ballot_num, slot_num, cmd}
-          spawn Commander, :start, [self(), acceptors, replicas, pvalue]
+          spawn Commander, :start, [self(), acceptors, replicas, pvalue], monitor
         end
         next acceptors, replicas, ballot_num, true, proposals
       {:preempted, {round, _leader}=preempt} when preempt > ballot_num ->
