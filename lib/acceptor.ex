@@ -18,6 +18,7 @@ defmodule Acceptor do
         accepted = put_if_true ballot_num == leader_ballot_num, accepted, pvalue
         send leader, {:accepted, ballot_num, {}}
         next ballot_num, accepted
+      {:decision, pvalue} -> next(ballot_num, MapSet.delete(accepted, pvalue))
     end
   end
 end

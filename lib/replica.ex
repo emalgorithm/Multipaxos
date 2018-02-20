@@ -36,7 +36,6 @@ defmodule Replica do
 
   defp insert_if_unique(list, elem) do
     if Enum.member?(list, elem) do
-      IO.puts "Trying to add dup"
       list
     else
       [elem | list]

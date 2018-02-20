@@ -7,6 +7,10 @@ defmodule Commander do
 
     # At this point majority of acceptors have accepted the ballot
     for r <- replicas, do: send r, {:decision, slot_num, cmd}
+
+    # OPTIMIZATION: Send decision to acceptors so that they know commands that has already been decided
+    Process.sleep(200)
+    for a <- acceptors, do: send a, {:decision, pvalue}
   end
 end
 
