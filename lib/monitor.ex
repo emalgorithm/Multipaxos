@@ -44,15 +44,15 @@ defp next config, clock, requests, updates, transactions, decisions do
     requests = Map.put requests, server_num, seen + 1
     next config, clock, requests, updates, transactions, decisions
 
-
-  { :commander_decision, {ballot_num, slot_num, req} -> # decision by commander
+  { :commander_decision, {ballot_num, slot_num, req} } -> # decision by commander
     if Map.has_key?(decisions, req) and decisions[req] != slot_num do
-	IO.puts " ** error duplicate decision of #{inspect req} " <>
+        IO.puts " ** error duplicate decision of #{inspect req} " <>
                 "for slots #{slot_num} and #{decisions[req]"
         System.halt
     end
     decisions = Map.put decisions, req, slot_num
     next config, clock, requests, updates, transactions, decisions
+
   :print -> 
     clock = clock + config.print_after 
     sorted = updates |> Map.to_list |> List.keysort(0)
