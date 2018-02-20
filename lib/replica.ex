@@ -65,8 +65,12 @@ defmodule Replica do
         # If a slot becomes available also try to place proposals for pending request
         {proposals, slot_in, slot_out, requests, decisions} = if slot_num == slot_out do
           {decisions, slot_out} = process_decisions decisions, slot_out, database,config
+          # IO.puts("Sending update_slot_out with decision #{inspect decided_cmd} from replica #{inspect self()}")
+          for leader <- leaders do
+            send leader, {:update_slot_out, self(), slot_out}
+          end
           {proposals, slot_in, requests} = process_requests {proposals, slot_in}, requests, slot_out, config[:window], leaders
-          {proposals, slot_in, slot_out, requests, decisions}
+          {proposals, max(slot_out, slot_in), slot_out, requests, decisions}
         else
           {proposals, slot_in, slot_out, requests, decisions}
         end
@@ -118,12 +122,12 @@ defmodule Replica do
   #   end
   # end
 
-  defp next leaders, requests, decisions, slot_in do
-    receive do
-      {:client_request, cmd} ->
-        next leaders, (MapSet.put requests, cmd), decisions
-      {:decision, slot_num, cmd} ->
-        decisions = Map.put decisions, slot_num, cmd
-    end
-  end
+  # defp next leaders, requests, decisions, slot_in do
+  #   receive do
+  #     {:client_request, cmd} ->
+  #       next leaders, (MapSet.put requests, cmd), decisions
+  #     {:decision, slot_num, cmd} ->
+  #       decisions = Map.put decisions, slot_num, cmd
+  #   end
+  # end
 end

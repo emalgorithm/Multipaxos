@@ -5,6 +5,7 @@ defmodule Commander do
     # Ensure accepted with the right ballot number for a majority of acceptors
     Leader.collect_majority (length acceptors), :accepted, leader, ballot_num
 
+    IO.puts("#{inspect cmd}           Decision: #{inspect pvalue}")
     # At this point majority of acceptors have accepted the ballot
     for r <- replicas, do: send r, {:decision, slot_num, cmd}
 
@@ -20,46 +21,62 @@ defmodule Scout do
     for a <- acceptors, do: send a, {:prepare, self(), ballot_num}
 
     # Ensure promise with the right ballot number for a majority of acceptors
-    all_accepted = Leader.collect_majority (length acceptors), :promise, leader, ballot_num
+    {all_accepted, highest_safe_slots} = Leader.collect_majority((length acceptors), :promise, leader, ballot_num) |> Enum.unzip
+    highest_safe_slot = Enum.max highest_safe_slots
 
     accepted = Enum.reduce all_accepted, fn(a, acc) -> MapSet.union a, acc end
-    # IO.puts "Accepted pvalues are #{inspect accepted}"
+    # IO.puts "Leader #{inspect leader} Accepted pvalues are #{inspect accepted} for ballot #{inspect ballot_num} highest_safe_slot is #{inspect highest_safe_slot}"
     # if (elem ballot_num, 0) < 100, do: IO.puts "Scout for #{inspect leader} adopted ballot #{inspect ballot_num}"
-    send leader, {:adopted, ballot_num, accepted}
+    send leader, {:adopted, ballot_num, accepted, highest_safe_slot}
   end
 end
 
 defmodule Leader do
-  def start _config do
+  def start config do
     receive do
       {:bind, acceptors, replicas} ->
         init_ballot_num = {0, self()}
         spawn Scout, :start, [self(), acceptors, init_ballot_num]
-        next acceptors, replicas, init_ballot_num, false, Map.new
+        replicas_to_slots = Map.new(replicas, fn replica -> {replica, 0} end) 
+        next acceptors, replicas, init_ballot_num, false, Map.new, replicas_to_slots, config[:n_servers]
     end
   end
 
-  def next acceptors, replicas, ballot_num, active, proposals do
+  def next acceptors, replicas, ballot_num, active, proposals, replicas_to_slots, n_server do
     receive do
       {:propose, slot_num, cmd} ->
         if active and !(Map.has_key? proposals, slot_num) do
           pvalue = {ballot_num, slot_num, cmd}
+          # IO.puts("Spawing commander for slot num #{slot_num}")
           spawn Commander, :start, [self(), acceptors, replicas, pvalue]
         end
 
         proposals = Map.put_new proposals, slot_num, cmd
-        next acceptors, replicas, ballot_num, active, proposals
-      {:adopted, ^ballot_num, pvalues} ->
-        proposals = Map.merge proposals, (pmax pvalues)
+        next acceptors, replicas, ballot_num, active, proposals, replicas_to_slots, n_server
+      {:adopted, ^ballot_num, pvalues, highest_safe_slot} ->
+        proposals = (for {slot_num, cmd} <- proposals, slot_num >= highest_safe_slot, do: {slot_num, cmd}) |> Map.new |> Map.merge((pmax pvalues))
+        # IO.puts("Proposals size: #{Kernel.map_size(proposals)}")
         for {slot_num, cmd} <- proposals do
+          # IO.puts("different Spawing commander for slot num #{slot_num}")
           pvalue = {ballot_num, slot_num, cmd}
           spawn Commander, :start, [self(), acceptors, replicas, pvalue]
         end
-        next acceptors, replicas, ballot_num, true, proposals
+        next acceptors, replicas, ballot_num, true, proposals, replicas_to_slots, n_server
       {:preempted, {round, _leader}=preempt} when preempt > ballot_num ->
         ballot_num = {round + 1, self()}
         spawn Scout, :start, [self(), acceptors, ballot_num]
-        next acceptors, replicas, ballot_num, false, proposals
+        next acceptors, replicas, ballot_num, false, proposals, replicas_to_slots, n_server
+      {:update_slot_out, replica, slot_out} ->
+        replicas_to_slots = replicas_to_slots |> Map.put(replica, slot_out)
+        # IO.puts("#{inspect replicas_to_slots}")
+        # IO.puts("n_server: #{n_server}")
+        highest_safe_slot = replicas_to_slots |> Map.values |> Enum.sort(&(&1 >= &2)) |> Enum.at(div(n_server, 2))
+        # IO.puts("leader #{inspect self()} is at highest_safe_slot update is #{inspect highest_safe_slot}")
+        proposals = (for {slot_num, cmd} <- proposals, slot_num >= highest_safe_slot, do: {slot_num, cmd}) |> Map.new
+        for acceptor <- acceptors do
+          send acceptor, {:update_slot_out, highest_safe_slot} 
+        end
+        next acceptors, replicas, ballot_num, active, proposals, replicas_to_slots, n_server
     end
   end
 
