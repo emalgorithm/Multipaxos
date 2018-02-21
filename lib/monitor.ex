@@ -69,7 +69,7 @@ defp next config, clock, requests, updates, transactions, decisions, replica_dec
     sorted = replica_decisions |> Map.to_list |> List.keysort(0) |> Enum.map(fn({r,dcs}) -> {r,length(dcs)} end)
     IO.puts "time = #{clock} decided proposals p. replica = #{inspect sorted}"
     # sorted = replica_proposals |> Map.to_list |> List.keysort(0)
-    # IO.puts "time = #{clock} replica proposals = #{inspect sorted}" 
+    # IO.puts "time = #{clock} replica proposals = #{inspect sorted}"
     IO.puts ""
     Process.send_after self(), :print, config.print_after
     next config, clock, requests, updates, transactions, decisions, replica_decisions, replica_proposals

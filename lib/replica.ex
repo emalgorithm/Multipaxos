@@ -6,8 +6,8 @@ defmodule Replica do
     end
   end
 
-  # This is an unconditional propose
   defp propose {proposals, slot_in}, cmd, leaders do
+    # This check is just for debugging / testing purposes
     if Enum.member?(Map.values(proposals), cmd) do
       IO.puts " ** error duplicate proposal for #{inspect cmd} at slot #{slot_in}"
     end
@@ -37,10 +37,6 @@ defmodule Replica do
     {proposals, slot_in, requests}
   end
 
-  # Decisions are also stored in proposals but in the form {:decided, cmd}
-  # There is no need to keep a set of pending requests as they get eagerly
-  # placed in proposals. This wouldn't work if a limit on the pending proposals
-  # is imposed such as when replicas need to handle reconfiguration messages
   defp eager_next {proposals, slot_in}, slot_out, requests, decisions, leaders, database, monitor, config do
     receive do
       {:client_request, cmd} ->
@@ -92,39 +88,6 @@ defmodule Replica do
             eager_next({Map.delete(proposals, slot_num), slot_in}, slot_out, [cmd | requests], decisions, leaders, database, monitor, config)
           end
         end
-    end
-  end
-
-
-
-
-
-
-
-
-
-
-
-  # Lazy implementation (incomplete)
-  # defp propose leaders, requests, decisions, proposals, slot_in do
-  #   if Map.has_key? decisions, slot_in do
-  #     propose leaders, requests, decisions, proposals, slot_in + 1
-  #   else
-  #     case Enum.fetch requests, 0 do
-  #       {:error} -> next leaders, requests, decisions
-  #       {:ok, cmd} ->
-  #         for l <- leaders, do: send l, {:propose, slot_in, cmd}
-  #         propose leaders, (MapSet.delete requests, cmd), decisions,  (Map.put proposals, slot_in, cmd), slot_in + 1
-  #     end
-  #   end
-  # end
-
-  defp next leaders, requests, decisions, slot_in do
-    receive do
-      {:client_request, cmd} ->
-        next leaders, (MapSet.put requests, cmd), decisions
-      {:decision, slot_num, cmd} ->
-        decisions = Map.put decisions, slot_num, cmd
     end
   end
 end

@@ -14,15 +14,12 @@ end
 
 defmodule Scout do
   def start leader, acceptors, ballot_num do
-    # IO.puts "Scout spawned"
     for a <- acceptors, do: send a, {:prepare, self(), ballot_num}
 
     # Ensure promise with the right ballot number for a majority of acceptors
     all_accepted = Leader.collect_majority (length acceptors), :promise, leader, ballot_num
 
     accepted = Enum.reduce all_accepted, fn(a, acc) -> MapSet.union a, acc end
-    # IO.puts "Accepted pvalues are #{inspect accepted}"
-    # if (elem ballot_num, 0) < 100, do: IO.puts "Scout for #{inspect leader} adopted ballot #{inspect ballot_num}"
     send leader, {:adopted, ballot_num, accepted}
   end
 end
@@ -48,7 +45,6 @@ defmodule Leader do
         proposals = Map.put_new proposals, slot_num, cmd
         next acceptors, replicas, ballot_num, active, proposals, monitor
       {:adopted, ^ballot_num, pvalues} ->
-        # IO.puts("#{Kernel.map_size(proposals)}")
         proposals = Map.merge proposals, (pmax pvalues)
         for {slot_num, cmd} <- proposals do
           pvalue = {ballot_num, slot_num, cmd}
@@ -68,7 +64,7 @@ defmodule Leader do
 
   defp pmax pvalues do
     slot_to_pvalues = pvalues |> MapSet.to_list |> Enum.group_by(fn {_, s, _} -> s end)
-    
+
     for {slot, pvalues} <- slot_to_pvalues do
       {_, _, cmd} = Enum.sort(pvalues, fn (a, b) -> a >= b end) |> hd
       {slot, cmd}
