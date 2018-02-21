@@ -1,3 +1,5 @@
+# Tencho Tenev (tt1215) and Emanuele Rossi (er1115)
+
 defmodule Commander do
   def start leader, acceptors, replicas, {ballot_num, slot_num, cmd}=pvalue, monitor do
     for a <- acceptors, do: send a, {:accept, self(), pvalue}

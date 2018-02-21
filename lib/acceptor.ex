@@ -1,3 +1,4 @@
+# Tencho Tenev (tt1215) and Emanuele Rossi (er1115)
 defmodule Acceptor do
   def start _config do
     # The ballot number { integer, leader } must follow total ordering

@@ -1,3 +1,5 @@
+# Tencho Tenev (tt1215) and Emanuele Rossi (er1115)
+
 # coursework 2, paxos made moderately complex
 
 defmodule Monitor do

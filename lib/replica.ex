@@ -1,3 +1,5 @@
+# Tencho Tenev (tt1215) and Emanuele Rossi (er1115)
+
 defmodule Replica do
   def start config, database, monitor do
     receive do
