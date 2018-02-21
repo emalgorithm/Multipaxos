@@ -46,6 +46,7 @@ defmodule Leader do
         proposals = Map.put_new proposals, slot_num, cmd
         next acceptors, replicas, ballot_num, active, proposals
       {:adopted, ^ballot_num, pvalues} ->
+        # IO.puts("#{Kernel.map_size(proposals)}")
         proposals = Map.merge proposals, (pmax pvalues)
         for {slot_num, cmd} <- proposals do
           pvalue = {ballot_num, slot_num, cmd}
@@ -61,20 +62,16 @@ defmodule Leader do
 
   # For each slot find the largest ballot
   # Returns map of slot, cmd pairs suitable for merging into proposals
-  defp pmax(pvalues) when pvalues == %MapSet{}, do: Map.new
+  def pmax(pvalues) when pvalues == %MapSet{}, do: Map.new
 
-  defp pmax pvalues do
-    sorted_pvalues = pvalues |> MapSet.to_list |> Enum.sort
-    {max_ballot_num, _, _} = hd sorted_pvalues
-
-    Enum.split_with(sorted_pvalues, (gt_ballot max_ballot_num))
-    |> elem(0)
-    |> Map.new(fn({_, slot_num, cmd}) -> {slot_num, cmd} end)
-  end
-
-  defp gt_ballot max_ballot_num do
-    fn {ballot_num, _, _} -> ballot_num >= max_ballot_num
+  def pmax pvalues do
+    slot_to_pvalues = pvalues |> MapSet.to_list |> Enum.group_by(fn {_, s, _} -> s end)
+    
+    for {slot, pvalues} <- slot_to_pvalues do
+      {_, _, cmd} = Enum.sort(pvalues, fn (a, b) -> a >= b end) |> hd
+      {slot, cmd}
     end
+    |> Map.new
   end
 
   def collect_majority count, msg_receive, leader, leader_ballot_num do
