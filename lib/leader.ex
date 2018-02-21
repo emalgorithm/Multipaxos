@@ -62,9 +62,9 @@ defmodule Leader do
 
   # For each slot find the largest ballot
   # Returns map of slot, cmd pairs suitable for merging into proposals
-  def pmax(pvalues) when pvalues == %MapSet{}, do: Map.new
+  defp pmax(pvalues) when pvalues == %MapSet{}, do: Map.new
 
-  def pmax pvalues do
+  defp pmax pvalues do
     slot_to_pvalues = pvalues |> MapSet.to_list |> Enum.group_by(fn {_, s, _} -> s end)
     
     for {slot, pvalues} <- slot_to_pvalues do
