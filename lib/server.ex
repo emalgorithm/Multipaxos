@@ -10,7 +10,7 @@ def start config, server_num, paxos, monitor do
 
   database = spawn Database, :start, [config, monitor]
   replica  = spawn Replica,  :start, [config, database, monitor]
-  leader   = spawn Leader,   :start, [config]
+  leader   = spawn Leader,   :start, [config, monitor]
   acceptor = spawn Acceptor, :start, [config]
 
   send paxos, { :config, replica, acceptor, leader }
